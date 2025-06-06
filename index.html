@@ -1,0 +1,86 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BTC/USDT Predictor</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-900 text-white p-4">
+  <div class="max-w-xl mx-auto">
+    <h1 class="text-2xl font-bold mb-4 text-center">BTC/USDT Price Predictor</h1>
+    <div class="mb-4">
+      <label class="block mb-1">Target Price (USDT):</label>
+      <input type="number" id="targetPrice" class="w-full p-2 rounded text-black">
+    </div>
+    <div class="mb-4">
+      <label class="block mb-1">Target Time (HH:MM, 24hr):</label>
+      <input type="time" id="targetTime" class="w-full p-2 rounded text-black">
+    </div>
+    <button onclick="predict()" class="bg-green-500 px-4 py-2 rounded hover:bg-green-600">Predict</button><div id="result" class="mt-6 text-lg font-semibold text-center"></div>
+
+<canvas id="btcChart" class="mt-6"></canvas>
+
+  </div>  <script>
+    let btcData = [];
+    let chart;
+
+    async function fetchBTCPrices() {
+      const res = await fetch('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=30');
+      const data = await res.json();
+      btcData = data.map(item => ({
+        time: new Date(item[0]),
+        close: parseFloat(item[4])
+      }));
+    }
+
+    function calculateIndicators(data) {
+      const closes = data.map(d => d.close);
+      const lastPrice = closes[closes.length - 1];
+      const avgPrice = closes.reduce((a, b) => a + b, 0) / closes.length;
+      const direction = lastPrice > avgPrice ? 'Above' : 'Below';
+      const confidence = Math.min(95, Math.abs(((lastPrice - avgPrice) / avgPrice) * 100) + 60);
+      return { direction, confidence: confidence.toFixed(2) };
+    }
+
+    async function predict() {
+      await fetchBTCPrices();
+      const { direction, confidence } = calculateIndicators(btcData);
+      const target = parseFloat(document.getElementById('targetPrice').value);
+      const last = btcData[btcData.length - 1].close;
+
+      let msg = `Current Price: $${last}<br>`;
+      msg += `Prediction: <span class="text-${direction === 'Above' ? 'green' : 'red'}-400">${direction} ${target}</span><br>`;
+      msg += `Confidence: ${confidence}%`;
+
+      document.getElementById('result').innerHTML = msg;
+      drawChart();
+    }
+
+    function drawChart() {
+      const ctx = document.getElementById('btcChart').getContext('2d');
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: btcData.map(d => d.time.toLocaleTimeString()),
+          datasets: [{
+            label: 'BTC/USDT',
+            data: btcData.map(d => d.close),
+            borderColor: 'orange',
+            fill: false,
+          }]
+        },
+        options: {
+          scales: {
+            x: { ticks: { color: 'white' } },
+            y: { ticks: { color: 'white' } }
+          },
+          plugins: {
+            legend: { labels: { color: 'white' } }
+          }
+        }
+      });
+    }
+  </script></body>
+</html>
